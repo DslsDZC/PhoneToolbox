@@ -8,6 +8,15 @@
 class DeviceInfo
 {
 public:
+    // 定义设备模式枚举
+    enum DeviceMode {
+        MODE_UNKNOWN = 0,
+        MODE_NORMAL,
+        MODE_RECOVERY,
+        MODE_BOOTLOADER,
+        MODE_FASTBOOT
+    };
+    
     DeviceInfo();
     
     // 基本信息
@@ -39,7 +48,7 @@ public:
     bool isRooted;
     QString selinuxStatus;
     
-    DeviceInfo::DeviceMode mode;
+    DeviceMode mode;  // 使用正确的枚举类型
     
     QMap<QString, QVariant> toMap() const;
     QString toString() const;

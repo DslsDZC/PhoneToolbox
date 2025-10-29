@@ -2,8 +2,8 @@
 #include <QString>
 
 DeviceInfo::DeviceInfo()
-    : isRooted(false)
-    , mode(DeviceDetector::MODE_UNKNOWN)
+    : isRooted(false),
+      mode(MODE_UNKNOWN)
 {
 }
 
@@ -35,12 +35,23 @@ QMap<QString, QVariant> DeviceInfo::toMap() const
     map["basebandVersion"] = basebandVersion;
     map["isRooted"] = isRooted;
     map["selinuxStatus"] = selinuxStatus;
+    map["mode"] = static_cast<int>(mode);
     
     return map;
 }
 
 QString DeviceInfo::toString() const
 {
+    QString modeString;
+    switch(mode) {
+        case MODE_NORMAL: modeString = "Normal"; break;
+        case MODE_RECOVERY: modeString = "Recovery"; break;
+        case MODE_BOOTLOADER: modeString = "Bootloader"; break;
+        case MODE_FASTBOOT: modeString = "Fastboot"; break;
+        case MODE_UNKNOWN:
+        default: modeString = "Unknown"; break;
+    }
+    
     return QString(
         "Device Info:\n"
         "  Serial: %1\n"
@@ -51,6 +62,13 @@ QString DeviceInfo::toString() const
         "  Build: %6\n"
         "  IMEI: %7\n"
         "  Mode: %8"
-    ).arg(serialNumber, manufacturer, model, deviceName, 
-          androidVersion, buildNumber, imei).arg(static_cast<int>(mode));
+    )
+    .arg(serialNumber)
+    .arg(manufacturer)
+    .arg(model)
+    .arg(deviceName)
+    .arg(androidVersion)
+    .arg(buildNumber)
+    .arg(imei)
+    .arg(modeString);
 }
