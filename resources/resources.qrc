@@ -1,17 +1,17 @@
 <RCC>
     <qresource prefix="/binaries">
         <!-- Linux binaries -->
-        <file alias="adb/linux/x64/adb">third_party/adb_binaries/linux/adb</file>
-        <file alias="adb/linux/x64/fastboot">third_party/adb_binaries/linux/fastboot</file>
+        <file alias="adb/linux/x64/adb">../third_party/adb_binaries/linux/adb</file>
+        <file alias="adb/linux/x64/fastboot">../third_party/adb_binaries/linux/fastboot</file>
         
         <!-- Windows binaries -->
-        <file alias="adb/windows/x64/adb.exe">third_party/adb_binaries/windows/adb.exe</file>
-        <file alias="adb/windows/x64/fastboot.exe">third_party/adb_binaries/windows/fastboot.exe</file>
-        <file alias="adb/windows/x64/AdbWinApi.dll">third_party/adb_binaries/windows/AdbWinApi.dll</file>
-        <file alias="adb/windows/x64/AdbWinUsbApi.dll">third_party/adb_binaries/windows/AdbWinUsbApi.dll</file>
+        <file alias="adb/windows/x64/adb.exe">../third_party/adb_binaries/windows/adb.exe</file>
+        <file alias="adb/windows/x64/fastboot.exe">../third_party/adb_binaries/windows/fastboot.exe</file>
+        <file alias="adb/windows/x64/AdbWinApi.dll">../third_party/adb_binaries/windows/AdbWinApi.dll</file>
+        <file alias="adb/windows/x64/AdbWinUsbApi.dll">../third_party/adb_binaries/windows/AdbWinUsbApi.dll</file>
         
         <!-- macOS binaries -->
-        <file alias="adb/macos/x64/adb">third_party/adb_binaries/macos/adb</file>
-        <file alias="adb/macos/x64/fastboot">third_party/adb_binaries/macos/fastboot</file>
+        <file alias="adb/macos/x64/adb">../third_party/adb_binaries/macos/adb</file>
+        <file alias="adb/macos/x64/fastboot">../third_party/adb_binaries/macos/fastboot</file>
     </qresource>
 </RCC>

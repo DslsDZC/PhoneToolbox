@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cmake",
+			"label": "CMake: 构建",
+			"command": "build",
+			"problemMatcher": [],
+			"detail": "CMake 模板 构建 任务"
+		},
+		{
+			"type": "cmake",
+			"label": "CMake: 清理",
+			"command": "clean",
+			"problemMatcher": [],
+			"detail": "CMake 模板 清理 任务"
+		},
+		{
+			"type": "cmake",
+			"label": "CMake: 测试",
+			"command": "test",
+			"problemMatcher": [],
+			"detail": "CMake 模板 测试 任务"
+		}
+	]
+}

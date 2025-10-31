@@ -1,0 +1,47 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Launch PhoneToolbox (Linux)",
+      "program": "${workspaceFolder}/${input:executablePath}",
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "stopAtEntry": false,
+      "preLaunchTask": "cmake: build",
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb"
+    },
+    {
+      "type": "cppdbg",
+      "request": "launch",
+      "name": "Launch PhoneToolbox (macOS)",
+      "program": "${workspaceFolder}/${input:executablePath}",
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "stopAtEntry": false,
+      "preLaunchTask": "cmake: build",
+      "MIMode": "lldb",
+      "miDebuggerPath": "/usr/bin/lldb"
+    },
+    {
+      "type": "cppvsdbg",
+      "request": "launch",
+      "name": "Launch PhoneToolbox (Windows)",
+      "program": "${workspaceFolder}/${input:executablePath}",
+      "cwd": "${workspaceFolder}",
+      "args": [],
+      "stopAtEntry": false,
+      "preLaunchTask": "cmake: build",
+      "console": "externalTerminal"
+    }
+  ],
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "executablePath",
+      "description": "Enter the path to the built executable relative to the workspace folder (e.g. build/PhoneToolbox or build/Debug/PhoneToolbox.exe)"
+    }
+  ]
+}

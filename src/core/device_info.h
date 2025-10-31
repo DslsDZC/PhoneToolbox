@@ -5,18 +5,12 @@
 #include <QMap>
 #include <QVariant>
 
+// 前向声明
+class DeviceDetector;
+
 class DeviceInfo
 {
 public:
-    // 定义设备模式枚举
-    enum DeviceMode {
-        MODE_UNKNOWN = 0,
-        MODE_NORMAL,
-        MODE_RECOVERY,
-        MODE_BOOTLOADER,
-        MODE_FASTBOOT
-    };
-    
     DeviceInfo();
     
     // 基本信息
@@ -42,16 +36,26 @@ public:
     QString screenResolution;
     QString batteryHealth;
     
-    // 系统信息
+    // Fastboot特定信息
     QString bootloaderVersion;
     QString basebandVersion;
+    QString productName;
+    QString variant;
+    QString hwVersion;
+    bool isBootloaderUnlocked;
+    bool isFastbootdMode;
+    
+    // 系统信息
     bool isRooted;
     QString selinuxStatus;
     
-    DeviceMode mode;  // 使用正确的枚举类型
+    int mode;  // 使用int而不是enum，避免包含问题
     
     QMap<QString, QVariant> toMap() const;
     QString toString() const;
+    
+    // Fastboot信息格式化
+    QString toFastbootString() const;
 };
 
 #endif // DEVICE_INFO_H

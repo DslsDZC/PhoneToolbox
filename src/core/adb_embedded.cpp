@@ -141,6 +141,18 @@ bool AdbEmbedded::extractEmbeddedTools()
         // 继续执行，因为ADB可能已经在运行
     }
 
+    QProcess fastbootTest;
+    fastbootTest.setProgram(m_fastbootPath);
+    fastbootTest.setArguments(QStringList() << "--version");
+    fastbootTest.start();
+    
+    if (fastbootTest.waitForFinished(3000)) {
+        qDebug() << "Fastboot test passed:" << fastbootTest.readAllStandardOutput();
+    } else {
+        qWarning() << "Fastboot test failed";
+        return false;
+    }
+    
     return true;
 }
 

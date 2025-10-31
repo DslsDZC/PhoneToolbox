@@ -16,9 +16,10 @@ public:
         MODE_UNKNOWN = 0,
         MODE_ADB = 1,
         MODE_FASTBOOT = 2,
-        MODE_EDL_9008 = 3,
-        MODE_MTK_DA = 4,
-        MODE_RECOVERY = 5
+        MODE_FASTBOOTD = 3,  // 新增Fastbootd模式
+        MODE_EDL_9008 = 4,
+        MODE_MTK_DA = 5,
+        MODE_RECOVERY = 6
     };
 
     explicit DeviceDetector(QObject *parent = nullptr);
@@ -26,6 +27,14 @@ public:
 
     void startMonitoring();
     void stopMonitoring();
+
+    // Fastboot相关方法
+    bool detectFastbootDevices(QStringList &devices);
+    DeviceInfo getFastbootDeviceInfo(const QString &deviceId);
+    QString executeFastbootCommand(const QString &command, const QString &deviceId = "");
+    QString formatDeviceInfoForDisplay(const DeviceInfo &info) const;
+    QString getBootloaderStatusIcon(bool isUnlocked) const;
+    QString getModeDisplayName(DeviceMode mode) const;
 
 signals:
     void deviceConnected(const DeviceInfo &info);
@@ -43,11 +52,17 @@ private:
     DeviceMode detectDeviceMode(const QString &deviceId);
     DeviceInfo getDeviceInfo(const QString &deviceId, DeviceMode mode);
     
+    // Fastboot特定检测
+    QString getBootloaderStatus(const QString &deviceId);
+    bool isFastbootdMode(const QString &deviceId);
+    QString getFastbootVar(const QString &varName, const QString &deviceId);
+    
     // 特定模式检测
     bool detectEDLMode();
     bool detectMTKDAMode();
     bool detectADBDevices(QStringList &devices);
-    bool detectFastbootDevices(QStringList &devices);
+    
+    QString formatValue(const QString &value) const;
 };
 
 #endif // DEVICE_DETECTOR_H
