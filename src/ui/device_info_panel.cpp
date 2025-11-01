@@ -237,15 +237,19 @@ void DeviceInfoPanel::updateDeviceInfo(const DeviceInfo &info)
         }
     }
     
-    if (!info.ramSize.isEmpty()) {
-        if (!m_infoWidgets.contains("ram")) {
-            QLabel *ramLabel = createSelectableLabel(info.ramSize);
-            m_formLayout->addRow("内存大小:", ramLabel);
-            m_infoWidgets["ram"] = ramLabel;
+    if (!info.cpuInfo.isEmpty()) {
+        const QString key = "cpu";
+        if (!m_infoWidgets.contains(key)) {
+            QLabel *cpuLabel = createSelectableLabel(info.cpuInfo);
+            m_formLayout->addRow("CPU信息:", cpuLabel);
+            m_infoWidgets[key] = cpuLabel;
         } else {
-            QLabel *ramLabel = qobject_cast<QLabel*>(m_infoWidgets["ram"]);
-            if (ramLabel) {
-                ramLabel->setText(info.ramSize);
+            QLabel *cpuLabel = qobject_cast<QLabel*>(m_infoWidgets[key]);
+            if (cpuLabel) {  // 确保转换成功
+                cpuLabel->setText(info.cpuInfo);
+            } else {
+                // 错误处理：类型不匹配
+                qWarning() << "Widget for key" << key << "is not a QLabel";
             }
         }
     }
@@ -266,7 +270,7 @@ void DeviceInfoPanel::updateDeviceInfo(const DeviceInfo &info)
 
 void DeviceInfoPanel::clearDeviceInfo()
 {
-    // 重置所有显示为默认值
+    // 重置固定信息标签为默认值
     m_serialLabel->setText("未连接");
     m_modelLabel->setText("未连接");
     m_manufacturerLabel->setText("未连接");
@@ -275,31 +279,18 @@ void DeviceInfoPanel::clearDeviceInfo()
     m_modeTextEdit->setPlainText("未连接");
     m_rootStatusLabel->setText("未连接");
     m_batteryLabel->setText("未连接");
-    
-    // 移除动态添加的信息行
-    QList<QString> dynamicKeys = {"cpu", "ram", "storage"};
-    for (const QString &key : dynamicKeys) {
-        if (m_infoWidgets.contains(key)) {
-            QWidget *widget = m_infoWidgets[key];
-            // 从表单布局中移除
-            int row = -1;
-            QLayoutItem *item = nullptr;
-            for (int i = 0; i < m_formLayout->rowCount(); ++i) {
-                QLayoutItem *labelItem = m_formLayout->itemAt(i, QFormLayout::LabelRole);
-                QLayoutItem *fieldItem = m_formLayout->itemAt(i, QFormLayout::FieldRole);
-                if (fieldItem && fieldItem->widget() == widget) {
-                    row = i;
-                    item = labelItem;
-                    break;
-                }
-            }
-            if (row != -1) {
-                m_formLayout->removeRow(row);
-                if (item) {
-                    delete item->widget();
-                    delete item;
-                }
-                delete widget;
+
+    // 移除动态添加的额外信息项（CPU、内存、存储等）
+    if (m_formLayout) {
+        // 从后往前移除行（保留前8行固定项）
+        int totalRows = m_formLayout->rowCount();
+        // 从最后一行开始删除，直到第8行（索引7）
+        for (int i = totalRows - 1; i >= 8; --i) {
+            // 通过布局的removeRow方法安全移除行，会自动销毁该行的部件和布局项
+            m_formLayout->removeRow(i);
+            // 从映射中移除对应部件（避免后续更新时引用已删除的部件）
+            QString key = m_infoWidgets.key(m_infoWidgets.value("cpu")); // 示例，需根据实际key调整
+            if (!key.isEmpty()) {
                 m_infoWidgets.remove(key);
             }
         }

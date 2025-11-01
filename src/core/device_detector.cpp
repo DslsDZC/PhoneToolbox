@@ -55,9 +55,17 @@ void DeviceDetector::detectConnectedDevices()
                 DeviceMode mode = m_fastbootDeviceModes[deviceId] ? MODE_FASTBOOTD : MODE_FASTBOOT;
                 DeviceInfo info = getFastbootDeviceInfo(deviceId);
                 info.mode = mode;
-                info.isFastbootdMode = (mode == MODE_FASTBOOTD); // 更新设备信息中的模式标记
-                
+                info.isFastbootdMode = (mode == MODE_FASTBOOTD);
                 newDevices[deviceId] = info;
+                if (!m_currentDevices.contains(deviceId)) {
+                    qDebug() << "Fastboot device connected:" << deviceId;
+                    QString formattedInfo = formatDeviceInfoForDisplay(info);
+                    qDebug().noquote() << formattedInfo;
+                    emit deviceConnected(info);
+                } else if (m_currentDevices[deviceId].mode != mode) {
+                    emit deviceModeChanged(deviceId, mode);
+                    qDebug() << "Fastboot device mode changed:" << deviceId << "to" << mode;
+                }
             } catch (const std::exception& e) {
                 qWarning() << "Exception while processing Fastboot device" << deviceId << ":" << e.what();
             } catch (...) {
