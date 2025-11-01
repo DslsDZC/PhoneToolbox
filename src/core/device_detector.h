@@ -16,7 +16,7 @@ public:
         MODE_UNKNOWN = 0,
         MODE_ADB = 1,
         MODE_FASTBOOT = 2,
-        MODE_FASTBOOTD = 3,  // 新增Fastbootd模式
+        MODE_FASTBOOTD = 3,
         MODE_EDL_9008 = 4,
         MODE_MTK_DA = 5,
         MODE_RECOVERY = 6
@@ -35,6 +35,7 @@ public:
     QString formatDeviceInfoForDisplay(const DeviceInfo &info) const;
     QString getBootloaderStatusIcon(bool isUnlocked) const;
     QString getModeDisplayName(DeviceMode mode) const;
+    void forceRefresh() { checkDevices(); }
 
 signals:
     void deviceConnected(const DeviceInfo &info);

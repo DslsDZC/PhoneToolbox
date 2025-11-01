@@ -245,21 +245,18 @@ DeviceInfo DeviceDetector::getFastbootDeviceInfo(const QString &deviceId)
     qDebug() << "Getting Fastboot device info for:" << deviceId;
     
     try {
-        // 获取基础设备信息 - 逐个获取并检查，添加延迟
+        // 获取基础设备信息
         info.productName = getFastbootVar("product", deviceId);
         qDebug() << "Product name:" << info.productName;
-        QThread::msleep(50);
         
         info.variant = getFastbootVar("variant", deviceId);
         qDebug() << "Variant:" << info.variant;
-        QThread::msleep(50);
         
         info.hwVersion = getFastbootVar("hw_version", deviceId);
         if (info.hwVersion.isEmpty()) {
             info.hwVersion = getFastbootVar("hw-version", deviceId);
         }
         qDebug() << "HW version:" << info.hwVersion;
-        QThread::msleep(50);
         
         // 获取 Bootloader 版本
         info.bootloaderVersion = getFastbootVar("bootloader-version", deviceId);
@@ -267,7 +264,6 @@ DeviceInfo DeviceDetector::getFastbootDeviceInfo(const QString &deviceId)
             info.bootloaderVersion = getFastbootVar("bootloader", deviceId);
         }
         qDebug() << "Bootloader version:" << info.bootloaderVersion;
-        QThread::msleep(50);
         
         // 检测Bootloader锁状态
         QString bootloaderStatus = getBootloaderStatus(deviceId);
@@ -281,16 +277,20 @@ DeviceInfo DeviceDetector::getFastbootDeviceInfo(const QString &deviceId)
         }
         qDebug() << "Fastbootd mode:" << info.isFastbootdMode;
         
-        // 获取电池状态
-        QString batteryStatus = getFastbootVar("battery-status", deviceId);
-        if (batteryStatus == "low") {
-            info.batteryHealth = "电量低";
-        } else if (batteryStatus == "ok") {
-            info.batteryHealth = "正常";
-        } else if (!batteryStatus.isEmpty() && !batteryStatus.contains("Error")) {
-            info.batteryHealth = batteryStatus;
+        // 仅在Fastbootd模式下获取电池状态
+        if (info.isFastbootdMode) {
+            QString batteryStatus = getFastbootVar("battery-status", deviceId);
+            if (batteryStatus == "low") {
+                info.batteryHealth = "电量低";
+            } else if (batteryStatus == "ok") {
+                info.batteryHealth = "正常";
+            } else if (!batteryStatus.isEmpty() && !batteryStatus.contains("Error")) {
+                info.batteryHealth = batteryStatus;
+            } else {
+                info.batteryHealth = "未知";
+            }
         } else {
-            info.batteryHealth = "未知";
+            info.batteryHealth = "传统Fastboot模式不支持电池检测";
         }
         qDebug() << "Battery health:" << info.batteryHealth;
         
@@ -322,7 +322,7 @@ DeviceInfo DeviceDetector::getFastbootDeviceInfo(const QString &deviceId)
             info.manufacturer = "未知";
         }
         
-        info.model = info.productName;
+        info.model = info.productName.isEmpty() ? "未知" : info.productName;
         
         qDebug() << "Final device info - Manufacturer:" << info.manufacturer << "Model:" << info.model;
         
