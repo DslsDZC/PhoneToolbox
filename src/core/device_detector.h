@@ -36,6 +36,7 @@ public:
     QString getBootloaderStatusIcon(bool isUnlocked) const;
     QString getModeDisplayName(DeviceMode mode) const;
     void forceRefresh() { checkDevices(); }
+    QMap<QString, bool> m_fastbootDeviceModes; 
 
 signals:
     void deviceConnected(const DeviceInfo &info);

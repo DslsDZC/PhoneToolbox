@@ -3,14 +3,10 @@
 
 #include <QMainWindow>
 #include <QSplitter>
-#include <QListWidget>
-#include <QStackedWidget>
-#include <QTextEdit>
-#include <QPushButton>
-#include <QComboBox>
-#include <QLabel>
 #include "core/device_detector.h"
-#include "core/adb_embedded.h"
+#include "ui/tool_panel.h"
+#include "ui/device_info_panel.h"
+#include "ui/output_panel.h"
 
 class MainWindow : public QMainWindow
 {
@@ -24,40 +20,23 @@ private slots:
     void onDeviceConnected(const DeviceInfo &info);
     void onDeviceDisconnected(const QString &serial);
     void onDeviceModeChanged(const QString &serial, DeviceDetector::DeviceMode newMode);
-    
-    void onRestartButtonClicked();
-    void onRefreshDevicesClicked();
-    void onClearOutputClicked();
-    
-    void onDeviceListSelectionChanged();
+    void onDeviceSelectionChanged(const QString &deviceId);
+    void onOutputMessage(const QString &message, bool isError = false);
+    void onRefreshRequested();
 
 private:
     void setupUI();
     void setupConnections();
-    void updateDeviceList();
-    void appendOutput(const QString &message, bool isError = false);
     
-    // 重启相关功能
-    bool checkRootPermission(const QString &deviceId);
-    void restartToMode(const QString &deviceId, const QString &targetMode);
-    QString getCurrentRestartCommand(const QString &deviceId, const QString &targetMode);
-
     QSplitter *m_mainSplitter;
-    QListWidget *m_deviceList;
-    QStackedWidget *m_contentStack;
-    QTextEdit *m_outputText;
+    QSplitter *m_rightSplitter;
     
-    // 设备控制区域
-    QWidget *m_deviceControlWidget;
-    QComboBox *m_restartModeCombo;
-    QPushButton *m_restartButton;
-    QPushButton *m_refreshButton;
-    QPushButton *m_clearButton;
-    QLabel *m_statusLabel;
+    ToolPanel *m_toolPanel;
+    DeviceInfoPanel *m_deviceInfoPanel;
+    OutputPanel *m_outputPanel;
     
     DeviceDetector m_deviceDetector;
     QMap<QString, DeviceInfo> m_currentDevices;
-    QString m_currentSelectedDevice;
 };
 
 #endif // MAIN_WINDOW_H

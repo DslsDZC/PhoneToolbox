@@ -52,22 +52,12 @@ void DeviceDetector::detectConnectedDevices()
     if (detectFastbootDevices(fastbootDevices)) {
         for (const QString &deviceId : fastbootDevices) {
             try {
-                DeviceMode mode = isFastbootdMode(deviceId) ? MODE_FASTBOOTD : MODE_FASTBOOT;
+                DeviceMode mode = m_fastbootDeviceModes[deviceId] ? MODE_FASTBOOTD : MODE_FASTBOOT;
                 DeviceInfo info = getFastbootDeviceInfo(deviceId);
                 info.mode = mode;
+                info.isFastbootdMode = (mode == MODE_FASTBOOTD); // 更新设备信息中的模式标记
                 
                 newDevices[deviceId] = info;
-                
-                if (!m_currentDevices.contains(deviceId)) {
-                    qDebug() << "Fastboot device connected:" << deviceId << "Mode:" << (mode == MODE_FASTBOOTD ? "Fastbootd" : "Fastboot");
-                    // 输出格式化设备信息
-                    QString formattedInfo = formatDeviceInfoForDisplay(info);
-                    qDebug().noquote() << formattedInfo;
-                    emit deviceConnected(info);
-                } else if (m_currentDevices[deviceId].mode != mode) {
-                    emit deviceModeChanged(deviceId, mode);
-                    qDebug() << "Device mode changed:" << deviceId << "to" << mode;
-                }
             } catch (const std::exception& e) {
                 qWarning() << "Exception while processing Fastboot device" << deviceId << ":" << e.what();
             } catch (...) {
@@ -142,8 +132,13 @@ DeviceDetector::DeviceMode DeviceDetector::detectDeviceMode(const QString &devic
     
     // 检测Fastboot模式
     QStringList fastbootDevices;
-    if (detectFastbootDevices(fastbootDevices) && fastbootDevices.contains(deviceId)) {
-        return isFastbootdMode(deviceId) ? MODE_FASTBOOTD : MODE_FASTBOOT;
+    if (detectFastbootDevices(fastbootDevices)) {
+        for (const QString &fbDevice : fastbootDevices) {
+            if (fbDevice == deviceId) {
+                // 进一步检测是传统Fastboot还是Fastbootd
+                return isFastbootdMode(deviceId) ? MODE_FASTBOOTD : MODE_FASTBOOT;
+            }
+        }
     }
     
     // 检测EDL模式 (需要USB检测)
@@ -173,6 +168,14 @@ DeviceInfo DeviceDetector::getDeviceInfo(const QString &deviceId, DeviceMode mod
         info.androidVersion = AdbEmbedded::instance().getDeviceInfo(deviceId, "ro.build.version.release");
         info.buildNumber = AdbEmbedded::instance().getDeviceInfo(deviceId, "ro.build.display.id");
         
+        // 获取Android SDK版本
+        QString sdkVersion = AdbEmbedded::instance().getDeviceInfo(deviceId, "ro.build.version.sdk");
+        
+        // 检查Root状态
+        QString rootCheck = AdbEmbedded::instance().executeCommand(
+            QString("-s %1 shell \"which su\"").arg(deviceId));
+        info.isRooted = !rootCheck.trimmed().isEmpty();
+        
         // 获取网络信息
         info.imei = AdbEmbedded::instance().executeCommand(
             QString("-s %1 shell service call iphonesubinfo 1 | awk -F \"'\" '{print $2}' | sed '1 d' | tr -d '.' | awk '{print $1}'").arg(deviceId)).trimmed();
@@ -181,14 +184,35 @@ DeviceInfo DeviceDetector::getDeviceInfo(const QString &deviceId, DeviceMode mod
         
         // 获取硬件信息
         info.cpuInfo = AdbEmbedded::instance().executeCommand(
-            QString("-s %1 shell cat /proc/cpuinfo | grep -i processor | wc -l").arg(deviceId)).trimmed() + " cores";
+            QString("-s %1 shell cat /proc/cpuinfo | grep -i processor | wc -l").arg(deviceId)).trimmed() + " 核心";
         
-        info.ramSize = AdbEmbedded::instance().executeCommand(
+        QString ramInfo = AdbEmbedded::instance().executeCommand(
             QString("-s %1 shell cat /proc/meminfo | grep MemTotal").arg(deviceId)).trimmed();
+        if (!ramInfo.isEmpty()) {
+            info.ramSize = ramInfo.split(":").value(1).trimmed();
+        }
+        
+        // 获取电池信息
+        QString batteryLevel = AdbEmbedded::instance().executeCommand(
+            QString("-s %1 shell dumpsys battery | grep level").arg(deviceId)).trimmed();
+        if (!batteryLevel.isEmpty()) {
+            info.batteryHealth = batteryLevel.split(":").value(1).trimmed() + "%";
+        }
+        
+    } else if (mode == MODE_FASTBOOT || mode == MODE_FASTBOOTD) {
+        // 获取Fastboot设备信息
+        info = getFastbootDeviceInfo(deviceId);
+        info.mode = mode; // 确保模式正确设置
     }
     
     return info;
 }
+
+// 新增结构体存储设备ID和模式
+struct FastbootDevice {
+    QString id;
+    bool isFastbootd;
+};
 
 bool DeviceDetector::detectFastbootDevices(QStringList &devices)
 {
@@ -200,8 +224,9 @@ bool DeviceDetector::detectFastbootDevices(QStringList &devices)
         return false;
     }
     
+    // 执行 `fastboot devices -l` 获取详细信息（包含模式）
     fastbootProcess.setProgram(fastbootPath);
-    fastbootProcess.setArguments(QStringList() << "devices");
+    fastbootProcess.setArguments(QStringList() << "devices" << "-l");
     
     fastbootProcess.start();
     if (!fastbootProcess.waitForFinished(3000)) {
@@ -217,14 +242,30 @@ bool DeviceDetector::detectFastbootDevices(QStringList &devices)
     }
     
     QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+    QList<FastbootDevice> fbDevices; // 存储设备ID和模式
     
     for (const QString &line : lines) {
-        if (!line.isEmpty() && !line.startsWith("List")) {
-            QString serial = line.split('\t').first().trimmed();
+        if (line.isEmpty() || line.startsWith("List of devices")) {
+            continue;
+        }
+        
+        // 解析格式：<设备ID>  <状态>  transport_id:<ID> [fastbootd]
+        QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (parts.size() >= 2) {
+            QString serial = parts[0].trimmed();
             if (!serial.isEmpty() && !serial.contains("?")) {
-                devices.append(serial);
+                // 判断是否包含 fastbootd 标记
+                bool isFastbootd = parts.contains("fastbootd");
+                fbDevices.append({serial, isFastbootd});
+                devices.append(serial); // 仍需填充原devices列表（兼容旧逻辑）
             }
         }
+    }
+    
+    // 缓存设备模式（用于后续快速查询）
+    m_fastbootDeviceModes.clear();
+    for (const auto &device : fbDevices) {
+        m_fastbootDeviceModes[device.id] = device.isFastbootd;
     }
     
     return !devices.isEmpty();
@@ -260,8 +301,8 @@ DeviceInfo DeviceDetector::getFastbootDeviceInfo(const QString &deviceId)
         
         // 获取 Bootloader 版本
         info.bootloaderVersion = getFastbootVar("bootloader-version", deviceId);
-        if (info.bootloaderVersion.isEmpty()) {
-            info.bootloaderVersion = getFastbootVar("bootloader", deviceId);
+        if (info.bootloaderVersion.isEmpty() || info.bootloaderVersion.contains("FAILED")) {
+        info.bootloaderVersion = "无法获取";
         }
         qDebug() << "Bootloader version:" << info.bootloaderVersion;
         
@@ -284,7 +325,7 @@ DeviceInfo DeviceDetector::getFastbootDeviceInfo(const QString &deviceId)
                 info.batteryHealth = "电量低";
             } else if (batteryStatus == "ok") {
                 info.batteryHealth = "正常";
-            } else if (!batteryStatus.isEmpty() && !batteryStatus.contains("Error")) {
+            } else if (!batteryStatus.isEmpty() && !batteryStatus.contains("Not found")) {
                 info.batteryHealth = batteryStatus;
             } else {
                 info.batteryHealth = "未知";
@@ -370,162 +411,77 @@ QString DeviceDetector::getBootloaderStatus(const QString &deviceId)
     return "未知";
 }
 
+// 改进 isFastbootdMode 检测
 bool DeviceDetector::isFastbootdMode(const QString &deviceId)
 {
-    // Fastbootd模式通常支持更多分区操作
-    // 尝试获取超级分区信息，Fastbootd通常支持而传统Fastboot不支持
-    QString superInfo = executeFastbootCommand("getvar is-userspace", deviceId);
-    
-    // 检查是否支持userspace命令（Fastbootd特性）
-    if (superInfo.contains("is-userspace: yes")) {
-        return true;
+    // 直接从缓存获取，避免重复执行命令
+    if (m_fastbootDeviceModes.contains(deviceId)) {
+        return m_fastbootDeviceModes[deviceId];
     }
     
-    // 尝试获取当前slot（Fastbootd特性）
-    QString slotInfo = executeFastbootCommand("getvar current-slot", deviceId);
-    if (slotInfo.contains("current-slot:") && !slotInfo.contains("not found")) {
-        return true;
-    }
-    
-    // 检查是否支持分区操作
-    QString partitionInfo = executeFastbootCommand("getvar has-slot:system", deviceId);
-    if (partitionInfo.contains("has-slot:") && !partitionInfo.contains("not found")) {
-        return true;
-    }
-    
-    return false;
+    // 兼容处理：若缓存未命中，执行原逻辑作为 fallback
+    QString result = executeFastbootCommand("getvar is-userspace", deviceId);
+    return result.contains("is-userspace: yes") || result.contains("fastbootd");
 }
 
 QString DeviceDetector::getFastbootVar(const QString &varName, const QString &deviceId)
 {
-    if (varName.isEmpty()) {
-        qWarning() << "getFastbootVar called with empty varName";
+    if (varName.isEmpty() || deviceId.isEmpty()) {
         return "";
     }
-    
-    QString command = "getvar " + varName;
+
+    // 执行 fastboot 命令获取变量
+    QString command = QString("getvar %1").arg(varName);
     QString result = executeFastbootCommand(command, deviceId);
-    
-    // 检查是否发生错误
-    if (result.startsWith("Error:")) {
-        qDebug() << "Fastboot command error for var" << varName << ":" << result;
-        return "";
-    }
-    
-    // 清理结果，移除无关的输出信息
-    result = result.trimmed();
-    
-    if (result.isEmpty()) {
-        return "";
-    }
-    
-    // 解析结果格式: "variable: value" 或 "variable: value OKAY [time info]"
-    QRegularExpression re(varName + ":\\s*(.+?)(\\s+OKAY|\\s*$)");
-    
-    // 检查正则表达式是否有效
-    if (!re.isValid()) {
-        qWarning() << "Invalid regex pattern for var:" << varName;
-        return "";
-    }
-    
-    QRegularExpressionMatch match = re.match(result);
-    
-    if (match.hasMatch()) {
-        QString value = match.captured(1).trimmed();
-        // 过滤掉时间信息和其他无关内容
-        if (!value.contains("Finished") && !value.contains("Total time")) {
+
+    // 过滤命令结果（关键处理）
+    QStringList lines = result.split('\n', Qt::SkipEmptyParts);
+    for (const QString &line : lines) {
+        // 跳过包含 "Finished" 或 "FAILED" 的状态行
+        if (line.contains("Finished") || line.contains("FAILED")) {
+            continue;
+        }
+        // 提取变量值（格式如 "battery-status: 50%"）
+        if (line.startsWith(varName + ":")) {
+            QString value = line.split(":", Qt::SkipEmptyParts).value(1).trimmed();
             return value;
         }
     }
-    
-    // 如果正则匹配失败，尝试逐行解析
-    QStringList lines = result.split('\n', Qt::SkipEmptyParts);
-    for (const QString &line : lines) {
-        if (line.startsWith(varName + ":")) {
-            QString value = line.mid(varName.length() + 1).trimmed();
-            // 移除 OKAY 和时间信息
-            value = value.split("OKAY", Qt::SkipEmptyParts).first().trimmed();
-            if (!value.contains("Finished") && !value.contains("Total time")) {
-                return value;
-            }
-        }
-    }
-    
-    return "";
+
+    // 若未找到有效数据，返回友好提示
+    return "设备不支持此信息";
 }
 
 QString DeviceDetector::executeFastbootCommand(const QString &command, const QString &deviceId)
 {
-    QString fastbootPath = AdbEmbedded::instance().getFastbootPath();
-    
-    if (fastbootPath.isEmpty()) {
-        qWarning() << "Fastboot path is empty";
-        return "Error: Fastboot path not available";
+    if (!AdbEmbedded::instance().initialize()) {
+        return "Error: ADB/Fastboot not initialized";
     }
-    
+
     QProcess process;
+    QString fastbootPath = AdbEmbedded::instance().getFastbootPath();
     
     QStringList arguments;
     if (!deviceId.isEmpty()) {
         arguments << "-s" << deviceId;
     }
     
-    // 安全地分割命令参数
-    QStringList commandParts = command.split(' ', Qt::SkipEmptyParts);
-    arguments.append(commandParts);
+    // 拆分命令参数
+    arguments << command.split(' ', Qt::SkipEmptyParts);
     
     process.setProgram(fastbootPath);
     process.setArguments(arguments);
     
-    qDebug() << "Executing fastboot command:" << fastbootPath << arguments;
-    
     process.start();
-    
-    // 增加错误检查
-    if (!process.waitForStarted(5000)) {
-        qWarning() << "Failed to start fastboot process. Error:" << process.errorString();
-        return "Error: Failed to start process - " + process.errorString();
-    }
-    
-    qDebug() << "Fastboot process started successfully";
-    
-    if (!process.waitForFinished(15000)) { // 增加到15秒超时
-        qWarning() << "Fastboot command timeout, killing process";
+    if (!process.waitForFinished(5000)) {
         process.kill();
-        process.waitForFinished(3000);
-        return "Error: Command timeout";
-    }
-    
-    qDebug() << "Fastboot process finished, exit code:" << process.exitCode() 
-             << "exit status:" << process.exitStatus();
-    
-    // 检查进程状态
-    if (process.exitStatus() != QProcess::NormalExit) {
-        qWarning() << "Fastboot process crashed";
-        return "Error: Process crashed";
+        return "Error: Fastboot command timed out";
     }
     
     QString output = process.readAllStandardOutput();
     QString error = process.readAllStandardError();
     
-    qDebug() << "Fastboot stdout:" << output;
-    qDebug() << "Fastboot stderr:" << error;
-    
-    // 清理输出，移除无关的时间统计信息
-    output = output.trimmed();
-    error = error.trimmed();
-    
-    // 移除常见的无关输出
-    output.remove(QRegularExpression("Finished\\. Total time: [0-9.]+s\\s*$"));
-    error.remove(QRegularExpression("Finished\\. Total time: [0-9.]+s\\s*$"));
-    
-    if (process.exitCode() != 0) {
-        qWarning() << "Fastboot command failed, exit code:" << process.exitCode() << "Error:" << error;
-        return "Error: " + error;
-    }
-    
-    // 优先返回标准输出，如果没有则返回错误输出（可能包含有用信息）
-    return output.isEmpty() ? error : output;
+    return output + error;
 }
 
 bool DeviceDetector::detectEDLMode()
